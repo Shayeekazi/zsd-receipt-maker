@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#10285f">
-<title>ZSD Editable Receipt Creator</title>
+<title>ZSD Receipt Creator</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#eef3f9;color:#10285f;font-family:Arial,sans-serif}
@@ -158,7 +158,6 @@ function draw(){
  for(let i=0;i<5;i++){g.beginPath();g.moveTo(35,1080+i*15);g.bezierCurveTo(280,1015+i*15,680,1165+i*15,1045,1075+i*15);g.strokeStyle=i%2===0?blue:'#78c9f5';g.lineWidth=5;g.stroke()}
  g.restore();rr(34,420,1012,760,30,null,blue,5);
  text('ZSD | BUSINESS RECEIPT',540,1365,'bold 22px Arial',navy,'center');
- text('BUSINESS-ISSUED RECORD',540,1390,'bold 13px Arial','#596b82','center');
 }
 function loadReceipt(r){
  $('date').value=r.date||'';$('receipt').value=r.number||'';$('amount').value=r.amount||'';$('utr').value=r.utr||'';$('name').value=r.name||'';$('account').value=r.account||'';$('ifsc').value=r.ifsc||'';$('issued').value=r.issued||'';$('status').value=r.status||'SUCCESS';generatedNumber=r.number;generated=true;draw();
