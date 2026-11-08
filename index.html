@@ -1,1 +1,1046 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZSD Editable Receipt Creator</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    background:#eef3f9;
+    color:#10285f;
+    font-family:Arial,sans-serif;
+}
+
+header{
+    background:#10285f;
+    color:white;
+    padding:15px 18px;
+    font-weight:700;
+    font-size:20px;
+}
+
+main{
+    max-width:1400px;
+    margin:16px auto;
+    padding:0 12px;
+    display:grid;
+    grid-template-columns:320px 1fr;
+    gap:16px;
+}
+
+.panel{
+    background:white;
+    border:1px solid #d7e3f0;
+    border-radius:12px;
+    padding:15px;
+    box-shadow:0 4px 18px #10285f10;
+}
+
+h2{
+    font-size:15px;
+    margin:0 0 12px;
+}
+
+.field{margin-bottom:10px}
+
+label{
+    display:block;
+    font-size:12px;
+    font-weight:bold;
+    margin-bottom:4px;
+}
+
+input,select{
+    width:100%;
+    padding:9px;
+    border:1px solid #b9cbe0;
+    border-radius:6px;
+    font-size:14px;
+    color:#10285f;
+    background:white;
+}
+
+button{
+    border:0;
+    border-radius:7px;
+    padding:11px;
+    background:#0879e8;
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+    width:100%;
+    margin-top:7px;
+}
+
+button:hover{opacity:.88}
+
+button.alt{
+    background:#e8f1fb;
+    color:#10285f;
+}
+
+button.generate{
+    background:#078344;
+    padding:14px;
+    font-size:16px;
+}
+
+.preview{
+    background:#e7edf5;
+    padding:12px;
+    border-radius:9px;
+    display:flex;
+    justify-content:center;
+    overflow:auto;
+}
+
+canvas{
+    width:min(100%,760px);
+    height:auto;
+    background:white;
+    box-shadow:0 4px 16px #0002;
+}
+
+small{
+    display:block;
+    color:#596b82;
+    line-height:1.45;
+    margin-top:10px;
+}
+
+#historyPanel{
+    grid-column:1/-1;
+}
+
+.history-item{
+    border:1px solid #d7e3f0;
+    padding:12px;
+    margin-bottom:10px;
+    border-radius:8px;
+    background:#f8fbff;
+    overflow-wrap:anywhere;
+}
+
+.history-info{
+    line-height:1.7;
+    margin-bottom:8px;
+}
+
+.history-actions{
+    display:flex;
+    gap:8px;
+}
+
+.history-actions button{
+    width:50%;
+    margin-top:5px;
+}
+
+.empty-history{
+    padding:20px;
+    text-align:center;
+    color:#596b82;
+}
+
+@media(max-width:800px){
+
+    main{grid-template-columns:1fr}
+
+    .preview{padding:5px}
+
+    header{font-size:17px}
+
+    #historyPanel{grid-column:1}
+
+}
+
+@media print{
+
+    header,
+    #cloudAuth,
+    .controls,
+    .preview-title,
+    #historyPanel{
+        display:none!important;
+    }
+
+    main{
+        display:block;
+        margin:0;
+    }
+
+    .panel{
+        border:0;
+        box-shadow:none;
+        padding:0;
+    }
+
+    .preview{
+        padding:0;
+        background:white;
+    }
+
+    canvas{
+        width:100%;
+        box-shadow:none;
+    }
+
+    @page{
+        size:A4 portrait;
+        margin:10mm;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<header>ZSD · Editable Receipt Image Creator</header>
+
+<section class="panel" id="cloudAuth" style="max-width:520px;margin:20px auto">
+<h2>ZSD CLOUD SIGN IN</h2>
+<p style="font-size:13px;color:#596b82;line-height:1.5">Create one account, then sign in with the same email and password on your Windows computer and iPhone. Your receipts will be stored in Firebase.</p>
+<div class="field"><label>Email address</label><input id="authEmail" type="email" autocomplete="username" placeholder="you@example.com"></div>
+<div class="field"><label>Password</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters"></div>
+<button id="signIn">SIGN IN</button>
+<button class="alt" id="signUp">CREATE NEW ACCOUNT</button>
+<p id="authMessage" role="status" style="font-size:13px;line-height:1.5"></p>
+</section>
+
+<div id="appShell" style="display:none">
+<div style="max-width:1400px;margin:12px auto;padding:0 12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+<span id="cloudStatus" style="font-size:13px;color:#0879e8">Connecting to cloud…</span>
+<button class="alt" id="signOut" style="width:auto;margin:0">SIGN OUT</button>
+</div>
+<main>
+
+<!-- RECEIPT INPUT FORM -->
+
+<section class="panel controls">
+
+<h2>EDIT RECEIPT DETAILS</h2>
+
+<div class="field">
+<label>Date</label>
+<input id="date" type="date">
+</div>
+
+<div class="field">
+<label>Receipt Number</label>
+<input id="receipt" readonly>
+</div>
+
+<div class="field">
+<label>Amount (INR)</label>
+<input id="amount" value="44000.00" inputmode="decimal">
+</div>
+
+<div class="field">
+<label>UTR / Reference Number</label>
+<input id="utr" placeholder="Enter verified reference number">
+</div>
+
+<div class="field">
+<label>Account Name</label>
+<input id="name" value="ZSD">
+</div>
+
+<div class="field">
+<label>Account Number</label>
+<input id="account" placeholder="Enter account number">
+</div>
+
+<div class="field">
+<label>IFSC Code</label>
+<input id="ifsc" placeholder="Enter IFSC code">
+</div>
+
+<div class="field">
+<label>Issued By</label>
+<input id="issued" value="ZSD">
+</div>
+
+<div class="field">
+<label>Receipt Status</label>
+<select id="status">
+<option value="SUCCESS">SUCCESS</option>
+<option value="DEPOSIT">DEPOSIT</option>
+<option value="CDM">CDM</option>
+<option value="PENDING">PENDING</option>
+<option value="REFUNDED">REFUNDED</option>
+<option value="CANCELLED">CANCELLED</option>
+</select>
+</div>
+
+<button class="alt" id="update">UPDATE PREVIEW</button>
+
+<button class="generate" id="generate">
+GENERATE RECEIPT
+</button>
+
+<button class="alt" id="download">
+DOWNLOAD RECEIPT AS JPG
+</button>
+
+<button class="alt" id="print">
+PRINT / SAVE AS PDF
+</button>
+
+<button class="alt" id="history">
+RECEIPT HISTORY
+</button>
+
+<small>
+ZSD business-issued receipt template.
+Enter accurate transaction details and verify payment status before issuing.
+Receipt history is saved in this browser.
+</small>
+
+</section>
+
+
+<!-- RECEIPT PREVIEW -->
+
+<section class="panel">
+
+<h2 class="preview-title">LIVE RECEIPT PREVIEW</h2>
+
+<div class="preview">
+<canvas id="art" width="1080" height="1400"></canvas>
+</div>
+
+</section>
+
+
+<!-- RECEIPT HISTORY -->
+
+<section class="panel" id="historyPanel" style="display:none">
+
+<h2>PREVIOUS RECEIPTS</h2>
+
+<input
+    id="historySearch"
+    placeholder="Search receipt number, date, account or UTR..."
+>
+
+<div id="historyList" style="margin-top:12px"></div>
+
+<button class="alt" id="closeHistory">
+CLOSE HISTORY
+</button>
+
+</section>
+
+</main>
+</div>
+
+
+<script type="module">
+
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js';
+import { getFirestore, collection, doc, getDocs, onSnapshot, runTransaction, serverTimestamp, query, orderBy } from 'https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js';
+
+// ====================================
+// FIREBASE CONFIGURATION
+// Replace every value below with the config from Firebase Console.
+// ====================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAH4yXi-hwsAaKbxTwHlzCxEKMOSD_syr0",
+  authDomain: "zsd-business.firebaseapp.com",
+  projectId: "zsd-business",
+  storageBucket: "zsd-business.firebasestorage.app",
+  messagingSenderId: "92763377882",
+  appId: "1:92763377882:web:d327949d2acb4ad3af95e3",
+  measurementId: "G-THBZREM1M8"
+};
+
+const firebaseConfigured = !Object.values(firebaseConfig).some(v => String(v).includes('PASTE_'));
+let auth = null, db = null, currentUser = null, stopReceiptListener = null;
+if (firebaseConfigured) {
+  const firebaseApp = initializeApp(firebaseConfig);
+  auth = getAuth(firebaseApp);
+  db = getFirestore(firebaseApp);
+}
+
+// ====================================
+// BASIC SETTINGS
+// ====================================
+
+const $ = id => document.getElementById(id);
+
+const cv = $('art');
+const g = cv.getContext('2d');
+
+const navy = '#10285f';
+const blue = '#0879e8';
+const light = '#8bc7fa';
+
+const historyKey = 'ZSD_RECEIPT_HISTORY'; // retained only for old, device-local records
+let generatedNumber = '';
+let generated = false;
+let cloudHistory = [];
+
+function userReceiptsRef(){ return collection(db, 'users', currentUser.uid, 'receipts'); }
+function userSequenceRef(prefix){ return doc(db, 'users', currentUser.uid, 'sequences', prefix); }
+
+async function getNextCloudNumber(){
+  const prefix = datePrefix();
+  const counterRef = userSequenceRef(prefix);
+  return await runTransaction(db, async tx => {
+    const snap = await tx.get(counterRef);
+    const next = snap.exists() ? Number(snap.data().next || 1) : 1;
+    tx.set(counterRef, { next: next + 1, updatedAt: serverTimestamp() });
+    return prefix + String(next).padStart(4, '0');
+  });
+}
+
+function startCloudHistory(){
+  if (stopReceiptListener) stopReceiptListener();
+  const q = query(userReceiptsRef(), orderBy('createdAt', 'desc'));
+  stopReceiptListener = onSnapshot(q, snap => {
+    cloudHistory = snap.docs.map(d => ({...d.data(), number:d.id}));
+    if ($('historyPanel').style.display !== 'none') showHistory();
+    $('cloudStatus').textContent = `Cloud connected · ${cloudHistory.length} receipt(s) synced`;
+  }, err => {
+    $('cloudStatus').textContent = 'Cloud sync error: ' + err.message;
+  });
+}
+
+async function saveReceipt(number){
+  const record = {
+    number, date:$('date').value, amount:$('amount').value, utr:$('utr').value,
+    name:$('name').value, account:$('account').value, ifsc:$('ifsc').value,
+    issued:$('issued').value, status:$('status').value,
+    createdAt: serverTimestamp()
+  };
+  await runTransaction(db, async tx => {
+    const receiptRef = doc(userReceiptsRef(), number);
+    const existing = await tx.get(receiptRef);
+    if (existing.exists()) throw new Error('This receipt number already exists. Please generate again.');
+    tx.set(receiptRef, record);
+  });
+}
+
+
+
+// ====================================
+// DATE
+// ====================================
+
+function todayDate(){
+
+    const d = new Date();
+
+    const year = d.getFullYear();
+    const month = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+
+    return `${year}-${month}-${day}`;
+
+}
+
+$('date').value = todayDate();
+
+
+// ====================================
+// TEXT FUNCTIONS
+// ====================================
+
+function text(t,x,y,font,color=navy,align='left'){
+
+    g.font = font;
+    g.fillStyle = color;
+    g.textAlign = align;
+
+    g.fillText(String(t),x,y);
+
+}
+
+
+function fit(t,max,font){
+
+    g.font = font;
+
+    let s = String(t || '—');
+
+    while(
+        g.measureText(s).width > max &&
+        s.length > 3
+    ){
+
+        s = s.slice(0,-2)+'…';
+
+    }
+
+    return s;
+
+}
+
+
+function rr(x,y,w,h,r,fill,stroke=null,lw=2){
+
+    g.beginPath();
+
+    g.roundRect(x,y,w,h,r);
+
+    if(fill){
+
+        g.fillStyle = fill;
+        g.fill();
+
+    }
+
+    if(stroke){
+
+        g.lineWidth = lw;
+        g.strokeStyle = stroke;
+        g.stroke();
+
+    }
+
+}
+
+
+// ====================================
+// AUTOMATIC RECEIPT NUMBER
+// ====================================
+
+function datePrefix(){
+
+    return 'RCP' + $('date').value.replaceAll('-','');
+
+}
+
+
+function sequenceKey(){
+
+    return 'ZSD_SEQUENCE_' + datePrefix();
+
+}
+
+
+function getNextNumber(){
+
+    let n = Number(
+        localStorage.getItem(sequenceKey()) || 1
+    );
+
+    return datePrefix() + String(n).padStart(4,'0');
+
+}
+
+
+// Initial number
+
+$('receipt').value = 'Sign in to generate';
+
+
+// ====================================
+// DRAW RECEIPT
+// ====================================
+
+function draw(){
+
+    g.clearRect(0,0,1080,1400);
+
+    g.fillStyle = '#ffffff';
+    g.fillRect(0,0,1080,1400);
+
+
+    // Top decorative lines
+
+    for(let i=0;i<7;i++){
+
+        g.beginPath();
+
+        g.moveTo(545+i*12,0);
+
+        g.bezierCurveTo(
+            700+i*15,40,
+            850+i*12,-10,
+            1080,105+i*11
+        );
+
+        g.strokeStyle = i%2 ? '#80cff8' : blue;
+
+        g.lineWidth = 5;
+
+        g.stroke();
+
+    }
+
+
+    // Heading
+
+    text('PAYMENT',43,140,'bold 76px Arial');
+
+    text('RECEIPT',393,140,'bold 76px Arial',blue);
+
+    text(
+        'TRANSACTION RECORD',
+        47,195,
+        'bold 34px Arial'
+    );
+
+    rr(48,219,105,13,7,blue);
+
+
+    // Amount
+
+    text('AMOUNT',49,292,'bold 35px Arial');
+
+    let amt = Number(
+        $('amount').value.replace(/,/g,'')
+    );
+
+    let amountText = Number.isFinite(amt)
+        ? amt.toLocaleString('en-IN',{
+            minimumFractionDigits:2,
+            maximumFractionDigits:2
+        })
+        : $('amount').value;
+
+    text(
+        fit('INR '+amountText,700,'bold 83px Arial'),
+        47,385,
+        'bold 83px Arial'
+    );
+
+
+    // Shield
+
+    g.beginPath();
+
+    g.moveTo(865,70);
+    g.lineTo(985,102);
+    g.lineTo(982,225);
+
+    g.quadraticCurveTo(
+        930,295,
+        878,225
+    );
+
+    g.closePath();
+
+    g.fillStyle = blue;
+    g.fill();
+
+    g.strokeStyle = '#78c9fa';
+    g.lineWidth = 9;
+
+    g.stroke();
+
+    text(
+        '✓',
+        930,210,
+        'bold 115px Arial',
+        '#fff',
+        'center'
+    );
+
+
+    // Details frame
+
+ rr(34,420,1012,760,30,null,blue,5);
+
+
+    // Receipt information
+
+    const rows = [
+
+        ['◷','DATE',$('date').value],
+
+        ['▤','RECEIPT NUMBER',$('receipt').value],
+
+        ['⇄','UTR / REFERENCE',$('utr').value],
+
+        ['♙','ACCOUNT NAME',$('name').value],
+
+        ['▣','ACCOUNT NUMBER',$('account').value],
+
+        ['▣','IFSC CODE',$('ifsc').value],
+
+        ['♙','ISSUED BY',$('issued').value],
+
+        ['✓','STATUS',$('status').value]
+
+    ];
+
+
+    rows.forEach((r,i)=>{
+
+        let y = 480 + i*78;
+
+        rr(
+            55,y-39,
+            86,59,
+            15,
+            blue
+        );
+
+        text(
+            r[0],
+            98,y+3,
+            'bold 43px Arial',
+            '#fff',
+            'center'
+        );
+
+        text(
+            r[1],
+            171,y,
+            'bold 27px Arial'
+        );
+
+        text(
+            fit(r[2],530,'bold 28px Arial'),
+            1015,y,
+            'bold 28px Arial',
+            navy,
+            'right'
+        );
+
+        if(i<8){
+
+            g.beginPath();
+
+            g.moveTo(171,y+22);
+            g.lineTo(1018,y+22);
+
+            g.strokeStyle = light;
+            g.lineWidth = 2;
+
+            g.stroke();
+
+        }
+
+    });
+
+
+
+// BOTTOM WAVES - MATCH REFERENCE DESIGN
+
+g.save();
+
+// Keep waves inside the shortened border
+g.beginPath();
+g.roundRect(34,420,1012,760,30);
+g.clip();
+
+// Five curved lines starting just below STATUS
+for(let i=0; i<5; i++){
+
+    g.beginPath();
+
+    g.moveTo(35,1080 + i*15);
+
+    g.bezierCurveTo(
+        280,1015 + i*15,
+        680,1165 + i*15,
+        1045,1075 + i*15
+    );
+
+    g.strokeStyle = i % 2 === 0 ? blue : '#78c9f5';
+    g.lineWidth = 5;
+    g.stroke();
+}
+
+g.restore();
+
+// Keep the border visible over the waves
+rr(34,420,1012,760,30,null,blue,5);
+
+
+
+    // Footer
+
+    text(
+        'ZSD | BUSINESS RECEIPT',
+        540,1365,
+        'bold 22px Arial',
+        navy,
+        'center'
+    );
+
+    text(
+        'BUSINESS-ISSUED RECORD • NOT A BANK-ISSUED RECEIPT',
+        540,1390,
+        'bold 13px Arial',
+        '#596b82',
+        'center'
+    );
+
+}
+
+
+// ====================================
+// RECEIPT HISTORY STORAGE
+// ====================================
+
+function getHistory(){ return cloudHistory; }
+
+
+
+// ====================================
+// LOAD PREVIOUS RECEIPT
+// ====================================
+
+function loadReceipt(record){
+
+    $('date').value = record.date;
+
+    $('receipt').value = record.number;
+
+    $('amount').value = record.amount;
+
+    $('utr').value = record.utr;
+
+    $('name').value = record.name;
+
+    $('account').value = record.account;
+
+    $('ifsc').value = record.ifsc;
+
+    $('issued').value = record.issued;
+
+    $('status').value = record.status;
+
+    generatedNumber = record.number;
+
+    generated = true;
+
+    draw();
+
+}
+
+
+// ====================================
+// SHOW RECEIPT HISTORY
+// ====================================
+
+function showHistory(){
+  const list = $('historyList');
+  const search = $('historySearch').value.toLowerCase().trim();
+  list.replaceChildren();
+  const history = getHistory();
+  const filtered = history.filter(record => [record.number,record.date,record.name,record.utr,record.account,record.ifsc].some(value => String(value || '').toLowerCase().includes(search)));
+  if(filtered.length === 0){
+    const empty = document.createElement('div'); empty.className='empty-history';
+    empty.textContent = history.length ? 'No matching receipts found.' : 'No cloud receipts saved yet.';
+    list.appendChild(empty); return;
+  }
+  filtered.forEach(record=>{
+    const item=document.createElement('div'); item.className='history-item';
+    const info=document.createElement('div'); info.className='history-info';
+    const title=document.createElement('strong'); title.textContent=record.number;
+    const details=document.createElement('div'); details.textContent='Date: '+record.date+' | Amount: INR '+record.amount+' | Account: '+record.name+' | Status: '+record.status;
+    info.append(title,details);
+    const actions=document.createElement('div'); actions.className='history-actions';
+    const view=document.createElement('button'); view.textContent='VIEW RECEIPT';
+    view.onclick=()=>{loadReceipt(record);$('historyPanel').style.display='none';window.scrollTo({top:0,behavior:'smooth'});};
+    const download=document.createElement('button'); download.textContent='DOWNLOAD JPG'; download.className='alt';
+    download.onclick=()=>{loadReceipt(record);const a=document.createElement('a');a.download=record.number+'.jpg';a.href=cv.toDataURL('image/jpeg',0.95);a.click();};
+    actions.append(view,download); item.append(info,actions); list.appendChild(item);
+  });
+}
+
+
+
+// ====================================
+// GENERATE RECEIPT
+// ====================================
+
+$('generate').onclick = async () => {
+  if (!currentUser) { alert('Please sign in first.'); return; }
+  const amount = Number($('amount').value.replace(/,/g,''));
+  if(!Number.isFinite(amount) || amount <= 0){ alert('Please enter a valid amount.'); return; }
+  try {
+    const number = await getNextCloudNumber();
+    $('receipt').value = number;
+    draw();
+    await saveReceipt(number);
+    generatedNumber = number; generated = true;
+    $('receipt').value = await getNextCloudNumberPreview();
+    alert('Receipt saved to ZSD Cloud successfully: ' + number);
+  } catch(error) {
+    console.error(error); alert('Could not save to cloud: ' + error.message);
+  }
+};
+
+async function getNextCloudNumberPreview(){
+  const prefix=datePrefix();
+  const snap=await (await import('https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js')).getDoc(userSequenceRef(prefix));
+  const n=snap.exists()?Number(snap.data().next||1):1;
+  return prefix+String(n).padStart(4,'0');
+}
+
+
+
+// ====================================
+// UPDATE PREVIEW
+// ====================================
+
+$('update').onclick = () => {
+
+    generated = false;
+
+    generatedNumber = '';
+
+    $('receipt').value = currentUser ? 'Ready for cloud numbering' : 'Sign in to generate';
+
+    draw();
+
+};
+
+
+// ====================================
+// DATE CHANGE
+// ====================================
+
+$('date').addEventListener('change',async ()=>{
+
+    generated = false;
+
+    generatedNumber = '';
+
+    $('receipt').value = currentUser ? await getNextCloudNumberPreview() : 'Sign in to generate';
+
+    draw();
+
+});
+
+
+// ====================================
+// RECEIPT HISTORY BUTTON
+// ====================================
+
+$('history').onclick = () => {
+
+    $('historyPanel').style.display = 'block';
+
+    $('historySearch').value = '';
+
+    showHistory();
+
+    $('historyPanel').scrollIntoView({
+        behavior:'smooth'
+    });
+
+};
+
+
+$('historySearch').addEventListener(
+    'input',
+    showHistory
+);
+
+
+$('closeHistory').onclick = () => {
+
+    $('historyPanel').style.display = 'none';
+
+};
+
+
+// ====================================
+// DOWNLOAD GENERATED RECEIPT
+// ====================================
+
+$('download').onclick = () => {
+
+    if(!generated){
+
+        alert(
+            'Please generate a receipt or select a previous receipt first.'
+        );
+
+        return;
+
+    }
+
+    const a = document.createElement('a');
+
+    a.download = generatedNumber + '.jpg';
+
+    a.href = cv.toDataURL('image/jpeg',0.95);
+
+    a.click();
+
+};
+
+
+// ====================================
+// PRINT / SAVE PDF
+// ====================================
+
+$('print').onclick = () => {
+
+    if(!generated){
+
+        alert(
+            'Please generate a receipt or select a previous receipt first.'
+        );
+
+        return;
+
+    }
+
+    window.print();
+
+};
+
+
+// ====================================
+// FIREBASE AUTHENTICATION
+// ====================================
+function authMessage(message, isError=false){
+  $('authMessage').textContent=message;
+  $('authMessage').style.color=isError?'#b42318':'#0879e8';
+}
+
+$('signUp').onclick=async()=>{
+  if(!firebaseConfigured){authMessage('Firebase is not configured yet. Add your Firebase web app config in the code first.',true);return;}
+  try{await createUserWithEmailAndPassword(auth,$('authEmail').value.trim(),$('authPassword').value);authMessage('Account created. Signing you in…');}
+  catch(e){authMessage(e.message,true);}
+};
+$('signIn').onclick=async()=>{
+  if(!firebaseConfigured){authMessage('Firebase is not configured yet. Add your Firebase web app config in the code first.',true);return;}
+  try{await signInWithEmailAndPassword(auth,$('authEmail').value.trim(),$('authPassword').value);authMessage('Signed in successfully.');}
+  catch(e){authMessage(e.message,true);}
+};
+$('signOut').onclick=async()=>{if(auth) await signOut(auth);};
+
+if(!firebaseConfigured){authMessage('Setup required: create a Firebase project, register a Web app, then paste its configuration into firebaseConfig in this file.',true);}
+else {
+  onAuthStateChanged(auth, async user=>{
+    currentUser=user;
+    $('cloudAuth').style.display=user?'none':'block';
+    $('appShell').style.display=user?'block':'none';
+    if(user){
+      $('cloudStatus').textContent='Signed in · connecting to cloud…';
+      startCloudHistory();
+      $('receipt').value=await getNextCloudNumberPreview();
+      draw();
+    } else {
+      if(stopReceiptListener){stopReceiptListener();stopReceiptListener=null;}
+      cloudHistory=[];
+    }
+  });
+}
+
+// ====================================
+// INITIAL PREVIEW
+// ====================================
+draw();
+
+</script>
+
+</body>
+</html>
