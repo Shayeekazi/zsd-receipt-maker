@@ -114,19 +114,66 @@ const navy='#10285f',blue='#0879e8',light='#8bc7fa';
 let currentUser=null,stopReceiptListener=null,cloudHistory=[],generatedNumber='',generated=false;
 
 function userReceiptsRef(){return collection(db,'users',currentUser.uid,'receipts')}
-function userSequenceRef(prefix){return doc(db,'users',currentUser.uid,'sequences',prefix)}
-function todayDate(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
-$('date').value=todayDate();
-function datePrefix(){return 'RCP'+$('date').value.replaceAll('-','')}
+
+function userSequenceRef(){
+ return doc(db,'users',currentUser.uid,'sequences','continuous-ZSD');
+}
+
+const RECEIPT_PREFIX='ZSD-';
+
+function formatReceiptNumber(n){
+ return RECEIPT_PREFIX+String(n).padStart(6,'0');
+}
+
 async function getNextCloudNumber(){
- const prefix=datePrefix(),ref=userSequenceRef(prefix);
- return runTransaction(db,async tx=>{const snap=await tx.get(ref);const next=snap.exists()?Number(snap.data().next||1):1;tx.set(ref,{next:next+1,updatedAt:serverTimestamp()});return prefix+String(next).padStart(4,'0')});
+ const ref=userSequenceRef();
+
+ return runTransaction(db,async tx=>{
+  const snap=await tx.get(ref);
+
+  let next=snap.exists()?Number(snap.data().next||1):1;
+
+  if(!Number.isSafeInteger(next)||next<1)next=1;
+
+  let number,receiptRef,receiptSnap;
+
+  // Check existing receipts to prevent duplicate numbers.
+  do{
+   number=formatReceiptNumber(next);
+   receiptRef=doc(userReceiptsRef(),number);
+   receiptSnap=await tx.get(receiptRef);
+
+   if(receiptSnap.exists())next++;
+  }while(receiptSnap.exists());
+
+  tx.set(ref,{
+   next:next+1,
+   updatedAt:serverTimestamp()
+  });
+
+  return number;
+ });
 }
+
 async function getNextCloudNumberPreview(){
- const snap=await getDoc(userSequenceRef(datePrefix()));
- const n=snap.exists()?Number(snap.data().next||1):1;
- return datePrefix()+String(n).padStart(4,'0');
+ const ref=userSequenceRef();
+ const snap=await getDoc(ref);
+
+ let next=snap.exists()?Number(snap.data().next||1):1;
+
+ if(!Number.isSafeInteger(next)||next<1)next=1;
+
+ // Preview the next unused number.
+ while(true){
+  const number=formatReceiptNumber(next);
+  const existing=await getDoc(doc(userReceiptsRef(),number));
+
+  if(!existing.exists())return number;
+
+  next++;
+ }
 }
+
 function startCloudHistory(){
  if(stopReceiptListener)stopReceiptListener();
  const q=query(userReceiptsRef(),orderBy('createdAt','desc'));
